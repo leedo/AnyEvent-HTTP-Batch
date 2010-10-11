@@ -1,6 +1,8 @@
 package AnyEvent::HTTP::Batch;
 
 use Any::Moose;
+use AnyEvent;
+use AnyEvent::HTTP;
 
 has conn_limit => (
   is => 'ro',
@@ -38,12 +40,12 @@ sub get {
 }
 
 sub post {
-  my ($self, @urls) = @_;
+  my ($self, $urls, %args) = @_;
   $self->request("post", $urls, %args);
 }
 
 sub head {
-  my ($self, @urls) = @_;
+  my ($self, $urls, %args) = @_;
   $self->request("head", $urls, %args);
 }
 
@@ -52,21 +54,21 @@ sub request {
 
   my @connections;
   my $open_connections = 0;
-  my $count = scalar @urls;
+  my $count = scalar @$urls;
   my ($timer_w, $idle_w);
 
   my $done = sub {
     @connections = ();
     undef $timer_w;
     undef $idle_w;
-  }
+  };
 
   $timer_w = AE::timer 0, $self->timeout, sub {
     $done->();
     $self->timeout_cb();
   };
 
-  $idle_w = AE::idle_w sub {
+  $idle_w = AE::idle sub {
     return if $open_connections > $self->conn_limit;
 
     if (!$count) {
